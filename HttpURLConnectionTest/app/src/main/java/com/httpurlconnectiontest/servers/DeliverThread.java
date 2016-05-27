@@ -29,23 +29,31 @@ public class DeliverThread extends Thread {
     String boundary;
     //请求参数
     Map<String, String> mParams = new HashMap<>();
+    // 请求headers
+    Map<String, String> mHeaders = new HashMap<>();
     //是否已经解析完Header
     boolean isParseHeader = true;
 
     public DeliverThread(Socket socket) {
         mClientSocket = socket;
+        Log.d(TAG, "accept socket");
     }
 
     @Override
     public void run() {
         try{
+            Log.d(TAG, "parse request start1");
             mInputStream = new BufferedReader(new InputStreamReader(mClientSocket.getInputStream()));
+            Log.d(TAG, "parse request start2");
             mOutputStream = new PrintStream(mClientSocket.getOutputStream());
+            Log.d(TAG, "parse request start3");
             parseRequest();
+            Log.d(TAG, "parse request start4");
         }catch (IOException e) {
-
+            Log.d(TAG, e.getMessage());
+            e.printStackTrace();
         }finally {
-
+            Log.d(TAG, "parse request completed");
         }
     }
 
@@ -53,7 +61,9 @@ public class DeliverThread extends Thread {
         String line;
         try {
             int lineNum = 0;
+            Log.d(TAG, "receive");
             while((line = mInputStream.readLine()) != null) {
+                Log.d(TAG, "receive" + line);
                 //第一行为请求行
                 if(lineNum == 0) {
                     parseRequestLine(line);
@@ -77,7 +87,11 @@ public class DeliverThread extends Thread {
                 lineNum++;
             }
         }catch (IOException e) {
-
+            Log.d(TAG, "get Message ");
+            Log.d(TAG, "get Message " + e.getMessage());
+            e.printStackTrace();
+        }finally {
+            Log.d(TAG, "completely parse packet");
         }
     }
 
@@ -90,15 +104,15 @@ public class DeliverThread extends Thread {
         String[] tempStrings = line.split(" ");
         httpMethod = tempStrings[0];
         subPath = tempStrings[1];
-        System.out.print("请求方式:" + tempStrings[0]);
-        System.out.print("子路径:" + tempStrings[1]);
-        System.out.print("HTTP版本:" + tempStrings[2]);
+        Log.d(TAG, "请求方式:" + tempStrings[0]);
+        Log.d(TAG, "子路径:" + tempStrings[1]);
+        Log.d(TAG, "HTTP版本:" + tempStrings[2]);
     }
 
     private void parserHeaders(String headLine) {
         if(headLine.equals("")) {
             isParseHeader = true;
-            System.out.print("-------header解析完成");
+            Log.d(TAG, "-------header解析完成");
             return;
         } else if(headLine.contains("boundary")) {
             boundary = parseSecondField(headLine) ;
@@ -120,8 +134,23 @@ public class DeliverThread extends Thread {
 
     private void parseHeaderParam(String headLine) {
         String[] keyValue = headLine.split(":");
+        mHeaders.put(keyValue[0].trim(), keyValue[1].trim());
+        Log.d(TAG, "header参数名:" + keyValue[0].trim() + ", 参数值:" + keyValue[1].trim());
     }
 
-    private void parseRequestParams(String line){}
+    private void parseRequestParams(String paramLine) throws IOException {
+        if(paramLine.equals("--" + boundary)) {
+            //读取Content-Disposition行
+            String contentDisposition = mInputStream.readLine();
+            //解析参数名
+            String paramName = parseSecondField(contentDisposition);
+            //读取参数header与参数值之间的空行
+            mInputStream.readLine();
+            //读取参数值
+            String paramValue = mInputStream.readLine();
+            mParams.put(paramName, paramValue);
+            Log.d(TAG, "参数名:" + paramName + ", 参数值:" + paramValue);
+        }
+    }
 
 }
